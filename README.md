@@ -8,10 +8,6 @@ Autor: Matheus Emiliano Souza
 
 **Uma arena interativa para explorar agentes, estratégia e Processos de Decisão de Markov (MDP).**
 
-[![Projeto](https://img.shields.io/badge/Projeto-Bomberman-ff6b35?style=for-the-badge)](./index.html)
-[![Tecnologias](https://img.shields.io/badge/HTML-CSS%20%7C%20JavaScript-4c8bf5?style=for-the-badge)](#-tecnologias)
-[![Tipo](https://img.shields.io/badge/Tipo-Projeto%20acadêmico-27ae60?style=for-the-badge)](#-sobre-o-projeto)
-
 </div>
 
 ---

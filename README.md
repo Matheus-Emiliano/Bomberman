@@ -28,7 +28,7 @@ A proposta é aproximar conceitos de **inteligência artificial** e **Processos 
 ##  Como executar
 
 1. Baixe este repositório ou clone-o.
-2. Abra o arquivo `index.html` em um navegador atualizado.
+2. Abra o arquivo `bomberman_mdp_visualizer_demo (1).html` em um navegador atualizado.
 3. Utilize os controles disponíveis na interface para explorar os modos e acompanhar a simulação.
 
 > **Observação:** alguns recursos visuais são carregados por serviços externos (CDNs). É necessária uma conexão com a internet para que esses recursos sejam carregados corretamente.

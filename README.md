@@ -37,7 +37,7 @@ A proposta é aproximar conceitos de **inteligência artificial** e **Processos 
 
 ```text
 Desafio-ia/
-├── index.html
+├── bomberman_mdp_visualizer_demo (1).html
 ├── Desafio-1-Bomberman-4-Bot-MDP.pdf
 └── README.md
 ```

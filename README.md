@@ -12,7 +12,7 @@ Projeto **Bomberman MDP 4-Bot Battle** — uma simulação visual de Aprendizado
 
 ## Arquivos
 
-- `bomberman_mdp_visualizer_demo` — jogo e visualizador interativo.
+- `bomberman_mdp_visualizer_demo (1).html` — jogo e visualizador interativo.
 - `Desafio-1-Bomberman-4-Bot-MDP.pdf` — documento do desafio.
 
 ## Repositório

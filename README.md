@@ -6,7 +6,6 @@ Autor: Matheus Emiliano Souza
 
 #  Bomberman — MDP 4-Bot Battle
 
-**Uma arena interativa para explorar agentes, estratégia e Processos de Decisão de Markov (MDP).**
 
 </div>
 

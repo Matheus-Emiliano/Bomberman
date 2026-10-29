@@ -1,0 +1,1122 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Bomberman RL / MDP Visualizer & Demo</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Inter:wght@400;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap">
+  <style>
+    body {
+      background-color: #090d16;
+      font-family: 'Inter', sans-serif;
+      color: #f8fafc;
+      user-select: none;
+    }
+    .font-arcade {
+      font-family: 'Press Start 2P', cursive;
+    }
+    .font-mono-code {
+      font-family: 'JetBrains Mono', monospace;
+    }
+    /* Custom scrollbar for log window */
+    ::-webkit-scrollbar {
+      width: 6px;
+    }
+    ::-webkit-scrollbar-track {
+      background: #0f172a;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #334155;
+      border-radius: 4px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: #475569;
+    }
+    canvas {
+      image-rendering: pixelated;
+      box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.7), 0 8px 10px -6px rgba(0, 0, 0, 0.7);
+    }
+
+    /* Neon arcade makeover */
+    body {
+      background:
+        radial-gradient(ellipse at 15% 0%, rgba(79,70,229,.22), transparent 38%),
+        radial-gradient(ellipse at 90% 18%, rgba(236,72,153,.13), transparent 32%),
+        linear-gradient(145deg, #070b18 0%, #10152b 48%, #080d19 100%);
+      background-attachment: fixed;
+    }
+    body::before {
+      content: "";
+      position: fixed; inset: 0; pointer-events: none; z-index: -1;
+      opacity: .18;
+      background-image: radial-gradient(rgba(148,163,184,.45) .7px, transparent .7px);
+      background-size: 22px 22px;
+      mask-image: linear-gradient(to bottom, black, transparent 85%);
+    }
+    header, main > div > .relative, main > div > .mt-4,
+    main > div > div.bg-slate-900, main > div > div.bg-slate-900\/60,
+    main > div > div.bg-slate-900\/90 {
+      backdrop-filter: blur(18px);
+    }
+    header {
+      border-color: rgba(129,140,248,.35) !important;
+      box-shadow: 0 12px 50px rgba(0,0,0,.28), 0 0 30px rgba(99,102,241,.08);
+    }
+    canvas {
+      border: 1px solid rgba(129,140,248,.55) !important;
+      box-shadow: 0 0 0 5px rgba(99,102,241,.06), 0 18px 55px rgba(0,0,0,.5),
+                  0 0 35px rgba(99,102,241,.16) !important;
+      image-rendering: auto;
+    }
+    button {
+      transition: transform .16s ease, box-shadow .16s ease, filter .16s ease, background .16s ease;
+    }
+    button:hover { filter: brightness(1.13); transform: translateY(-1px); }
+    button:active { transform: translateY(1px) scale(.98); }
+    .arcade-glow { text-shadow: 0 0 18px rgba(251,146,60,.35); }
+    @keyframes floaty { 0%,100% { transform: translateY(0) } 50% { transform: translateY(-3px) } }
+    @keyframes neonPulse { 0%,100% { box-shadow: 0 0 12px rgba(99,102,241,.12) } 50% { box-shadow: 0 0 24px rgba(99,102,241,.25) } }
+    header .w-12 { animation: floaty 3s ease-in-out infinite; }
+    main > div > div.bg-slate-900 { border-color: rgba(100,116,139,.35); }
+    #modal-screen { background: rgba(5,8,20,.82); }
+    #modal-title { text-shadow: 0 0 24px rgba(251,191,36,.25); }
+    #mdp-log-list > div { animation: fadeIn .22s ease-out; }
+    @keyframes fadeIn { from { opacity: 0; transform: translateX(5px) } to { opacity: 1; transform: translateX(0) } }
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; }
+    }
+
+  </style>
+</head>
+<body class="min-h-screen flex flex-col justify-between p-3 md:p-6">
+
+  <!-- Header Section -->
+  <header class="max-w-7xl w-full mx-auto flex flex-wrap justify-between items-center gap-4 bg-slate-900/90 border border-slate-800 rounded-2xl p-4 backdrop-blur shadow-xl mb-4">
+    <div class="flex items-center gap-3">
+      <div class="w-12 h-12 bg-indigo-600 rounded-xl flex items-center justify-center text-2xl text-white shadow-lg shadow-indigo-500/30">
+        <i class="fa-solid fa-bomb"></i>
+      </div>
+      <div>
+        <h1 class="text-xl md:text-2xl font-black tracking-wide text-transparent bg-clip-text bg-gradient-to-r from-yellow-300 via-orange-500 to-pink-500 font-arcade arcade-glow">
+          BOMBERMAN <span class="text-xs text-indigo-400 tracking-normal font-sans ml-1 border border-indigo-500/30 px-2 py-0.5 rounded-full bg-indigo-500/10">MDP 4-BOT BATTLE</span>
+        </h1>
+        <p class="text-xs text-slate-400">Desafio 1 • Simulação de Aprendizado por Reforço com 4 Agentes</p>
+      </div>
+    </div>
+
+    <!-- HUD Indicators -->
+    <div class="flex flex-wrap items-center gap-4 text-sm font-semibold">
+      <div class="bg-slate-800/80 border border-slate-700/60 rounded-xl px-3 py-2 flex items-center gap-2">
+        <i class="fa-solid fa-users text-indigo-400"></i>
+        <span class="text-xs text-slate-400 uppercase">Bots Vivos:</span>
+        <span id="hud-alive-bots" class="text-indigo-300 font-bold text-base">4 / 4</span>
+      </div>
+      <div class="bg-slate-800/80 border border-slate-700/60 rounded-xl px-3 py-2 flex items-center gap-2">
+        <i class="fa-solid fa-eye text-amber-400"></i>
+        <span class="text-xs text-slate-400 uppercase">Foco Telemetria:</span>
+        <span id="hud-focused-bot" class="text-amber-300 font-bold text-base">Bot 1</span>
+      </div>
+      <div class="bg-slate-800/80 border border-slate-700/60 rounded-xl px-3 py-2 flex items-center gap-2">
+        <i class="fa-solid fa-trophy text-emerald-400"></i>
+        <span class="text-xs text-slate-400 uppercase">Líder Score:</span>
+        <span id="hud-leader" class="text-emerald-400 font-mono-code text-base">Bot 1 (0)</span>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Grid Layout -->
+  <main class="max-w-7xl w-full mx-auto grid grid-cols-1 lg:grid-cols-12 gap-6 items-start flex-1">
+    
+    <!-- Left Column: Game Canvas & Overlay Controls -->
+    <div class="lg:col-span-7 xl:col-span-8 flex flex-col items-center">
+      <div class="relative w-full flex justify-center bg-slate-900 border border-slate-800 rounded-2xl p-4 shadow-2xl overflow-hidden">
+        
+        <!-- Game Canvas -->
+        <canvas id="gameCanvas" width="572" height="572" class="rounded-lg max-w-full h-auto bg-slate-950 border border-slate-800"></canvas>
+
+        <!-- Overlay Pause / Game Over Screen -->
+        <div id="modal-screen" class="absolute inset-0 bg-slate-950/85 backdrop-blur-md flex flex-col items-center justify-center p-6 text-center z-20 hidden">
+          <div id="modal-icon" class="text-5xl mb-3 text-amber-400">
+            <i class="fa-solid fa-pause"></i>
+          </div>
+          <h2 id="modal-title" class="text-2xl font-bold font-arcade mb-2 text-white">SIMULAÇÃO PAUSADA</h2>
+          <p id="modal-desc" class="text-sm text-slate-300 max-w-md mb-6">Pressione espaço ou clique no botão abaixo para prosseguir a simulação.</p>
+          <button id="btn-modal-action" class="bg-indigo-600 hover:bg-indigo-500 text-white font-bold px-6 py-3 rounded-xl shadow-lg transition active:scale-95 flex items-center gap-2">
+            <i class="fa-solid fa-play"></i> Continuar Simulação
+          </button>
+        </div>
+      </div>
+
+      <!-- Quick Control Bar below Canvas -->
+      <div class="w-full flex flex-wrap justify-between items-center gap-3 mt-4 bg-slate-900/60 border border-slate-800/80 p-3 rounded-xl">
+        <div class="flex items-center gap-2">
+          <button id="btn-pause" class="bg-slate-800 hover:bg-slate-700 text-slate-200 px-4 py-2 rounded-lg text-sm font-semibold flex items-center gap-2 border border-slate-700 transition">
+            <i class="fa-solid fa-pause"></i> Pausar
+          </button>
+          <button id="btn-restart" class="bg-slate-800 hover:bg-slate-700 text-slate-200 px-4 py-2 rounded-lg text-sm font-semibold flex items-center gap-2 border border-slate-700 transition">
+            <i class="fa-solid fa-rotate-right"></i> Reiniciar
+          </button>
+          <button id="btn-toggle-manual" class="bg-indigo-900/50 hover:bg-indigo-800/60 text-indigo-300 border border-indigo-700/50 px-4 py-2 rounded-lg text-sm font-semibold flex items-center gap-2 transition">
+            <i class="fa-solid fa-gamepad"></i> Controle Manual Bot 1
+          </button>
+        </div>
+
+        <!-- Bot Selector Buttons -->
+        <div class="flex items-center gap-1.5 text-xs">
+          <span class="text-slate-400 mr-1 font-semibold">Telemetria:</span>
+          <button data-bot-id="0" class="btn-select-bot bg-blue-600 text-white font-bold px-2.5 py-1.5 rounded-lg border border-blue-400 transition">Bot 1</button>
+          <button data-bot-id="1" class="btn-select-bot bg-slate-800 text-rose-400 font-bold px-2.5 py-1.5 rounded-lg border border-slate-700 transition">Bot 2</button>
+          <button data-bot-id="2" class="btn-select-bot bg-slate-800 text-emerald-400 font-bold px-2.5 py-1.5 rounded-lg border border-slate-700 transition">Bot 3</button>
+          <button data-bot-id="3" class="btn-select-bot bg-slate-800 text-purple-400 font-bold px-2.5 py-1.5 rounded-lg border border-slate-700 transition">Bot 4</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Right Column: MDP State & Rewards Dashboard -->
+    <div class="lg:col-span-5 xl:col-span-4 flex flex-col gap-4">
+      
+      <!-- MDP State Card -->
+      <div class="bg-slate-900 border border-slate-800 rounded-2xl p-4 shadow-xl">
+        <div class="flex items-center justify-between border-b border-slate-800 pb-3 mb-3">
+          <h2 class="text-sm font-bold text-indigo-400 uppercase tracking-wider flex items-center gap-2">
+            <i class="fa-solid fa-network-wired"></i> Estado MDP (<span id="mdp-bot-label" class="text-amber-400">Bot 1</span>)
+          </h2>
+          <span id="mdp-status-tag" class="text-[10px] bg-emerald-500/10 text-emerald-300 border border-emerald-500/20 px-2 py-0.5 rounded-full font-mono">VIVO</span>
+        </div>
+
+        <div class="grid grid-cols-2 gap-3 text-xs font-mono-code">
+          <div class="bg-slate-950 p-2.5 rounded-xl border border-slate-800">
+            <span class="text-slate-500 block text-[10px] uppercase font-sans">Posição Agente</span>
+            <span id="mdp-pos" class="text-amber-400 font-bold text-sm">(1, 1)</span>
+          </div>
+          <div class="bg-slate-950 p-2.5 rounded-xl border border-slate-800">
+            <span class="text-slate-500 block text-[10px] uppercase font-sans">Ação Recente (A<sub>t</sub>)</span>
+            <span id="mdp-last-action" class="text-blue-400 font-bold text-sm">NENHUMA</span>
+          </div>
+          <div class="bg-slate-950 p-2.5 rounded-xl border border-slate-800">
+            <span class="text-slate-500 block text-[10px] uppercase font-sans">Rival Próximo</span>
+            <span id="mdp-dist-enemy" class="text-purple-400 font-bold text-sm">d = --</span>
+          </div>
+          <div class="bg-slate-950 p-2.5 rounded-xl border border-slate-800">
+            <span class="text-slate-500 block text-[10px] uppercase font-sans">Ameaça de Explosão</span>
+            <span id="mdp-bomb-danger" class="text-emerald-400 font-bold text-sm">SEGURO</span>
+          </div>
+        </div>
+
+        <!-- Vision Matrix Sample -->
+        <div class="mt-3 bg-slate-950 p-3 rounded-xl border border-slate-800">
+          <span class="text-slate-400 text-[11px] font-semibold block mb-2 font-sans flex justify-between items-center">
+            <span>Visão Local 3x3 do Agente:</span>
+            <span class="text-[10px] text-slate-500">(0:Livre, 1:Parede, 2:Bloco, 3:Bomba, 4:Rival)</span>
+          </span>
+          <div id="mdp-grid-vision" class="grid grid-cols-3 gap-1 w-28 mx-auto font-mono text-center text-xs">
+            <!-- Dynamically Rendered -->
+          </div>
+        </div>
+      </div>
+
+      <!-- MDP Reward History & Logs -->
+      <div class="bg-slate-900 border border-slate-800 rounded-2xl p-4 shadow-xl flex-1 flex flex-col">
+        <div class="flex items-center justify-between border-b border-slate-800 pb-3 mb-3">
+          <h2 class="text-sm font-bold text-emerald-400 uppercase tracking-wider flex items-center gap-2">
+            <i class="fa-solid fa-list-check"></i> Histórico de Recompensas (<span id="reward-bot-label" class="text-amber-400">Bot 1</span>)
+          </h2>
+          <button id="btn-clear-logs" class="text-[10px] text-slate-400 hover:text-slate-200 transition">Limpar</button>
+        </div>
+
+        <!-- Log container -->
+        <div id="mdp-log-list" class="font-mono-code text-xs flex-1 min-h-[180px] max-h-[220px] overflow-y-auto space-y-1.5 pr-1">
+          <div class="text-slate-500 text-[11px] italic">Aguardando ações do agente...</div>
+        </div>
+      </div>
+
+      <!-- Powerups & Stats -->
+      <div class="bg-slate-900 border border-slate-800 rounded-2xl p-3 shadow-xl flex justify-around text-center text-xs">
+        <div>
+          <span class="text-slate-400 block text-[10px]">Alcance Fogo</span>
+          <span id="stat-range" class="font-bold text-amber-400 text-sm">1 Célula</span>
+        </div>
+        <div class="border-r border-slate-800"></div>
+        <div>
+          <span class="text-slate-400 block text-[10px]">Max Bombas</span>
+          <span id="stat-bombs" class="font-bold text-blue-400 text-sm">1 Ativa</span>
+        </div>
+        <div class="border-r border-slate-800"></div>
+        <div>
+          <span class="text-slate-400 block text-[10px]">Recompensa Total</span>
+          <span id="stat-cum-reward" class="font-bold text-emerald-400 font-mono-code text-sm">+0</span>
+        </div>
+      </div>
+
+    </div>
+  </main>
+
+  <!-- Touch Controls for Mobile/Tablet Testing -->
+  <div class="max-w-7xl w-full mx-auto mt-4 lg:hidden flex justify-center gap-4">
+    <div class="grid grid-cols-3 gap-2 w-36">
+      <div></div>
+      <button id="btn-touch-up" class="bg-slate-800 border border-slate-700 active:bg-slate-700 text-white p-3 rounded-xl flex items-center justify-center text-lg"><i class="fa-solid fa-arrow-up"></i></button>
+      <div></div>
+      <button id="btn-touch-left" class="bg-slate-800 border border-slate-700 active:bg-slate-700 text-white p-3 rounded-xl flex items-center justify-center text-lg"><i class="fa-solid fa-arrow-left"></i></button>
+      <button id="btn-touch-down" class="bg-slate-800 border border-slate-700 active:bg-slate-700 text-white p-3 rounded-xl flex items-center justify-center text-lg"><i class="fa-solid fa-arrow-down"></i></button>
+      <button id="btn-touch-right" class="bg-slate-800 border border-slate-700 active:bg-slate-700 text-white p-3 rounded-xl flex items-center justify-center text-lg"><i class="fa-solid fa-arrow-right"></i></button>
+    </div>
+    <button id="btn-touch-bomb" class="bg-rose-600 active:bg-rose-500 text-white font-bold p-4 rounded-2xl flex-1 max-w-[140px] flex flex-col items-center justify-center gap-1 shadow-lg">
+      <i class="fa-solid fa-bomb text-2xl"></i>
+      <span class="text-xs">BOMBA</span>
+    </button>
+  </div>
+
+  <footer class="max-w-7xl w-full mx-auto text-center text-xs text-slate-500 mt-6 pt-3 border-t border-slate-800/80">
+    Apresentação de Aprendizado por Reforço • Modelo Markov Decision Process (MDP) • Bomberman Agent
+  </footer>
+
+  <!-- Web Audio Synthesizer for Retro Sound Effects (No External Files) -->
+  <script>
+    class SoundFX {
+      constructor() {
+        this.ctx = null;
+      }
+      init() {
+        if (!this.ctx) {
+          const AudioContext = window.AudioContext || window.webkitAudioContext;
+          this.ctx = new AudioContext();
+        }
+      }
+      playStep() {
+        if (!this.ctx) return;
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        osc.type = 'triangle';
+        osc.frequency.setValueAtTime(120, this.ctx.currentTime);
+        osc.frequency.exponentialRampToValueAtTime(40, this.ctx.currentTime + 0.04);
+        gain.gain.setValueAtTime(0.04, this.ctx.currentTime);
+        gain.gain.linearRampToValueAtTime(0, this.ctx.currentTime + 0.04);
+        osc.connect(gain);
+        gain.connect(this.ctx.destination);
+        osc.start();
+        osc.stop(this.ctx.currentTime + 0.04);
+      }
+      playBomb() {
+        if (!this.ctx) return;
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        osc.type = 'square';
+        osc.frequency.setValueAtTime(300, this.ctx.currentTime);
+        osc.frequency.exponentialRampToValueAtTime(100, this.ctx.currentTime + 0.12);
+        gain.gain.setValueAtTime(0.1, this.ctx.currentTime);
+        gain.gain.linearRampToValueAtTime(0, this.ctx.currentTime + 0.12);
+        osc.connect(gain);
+        gain.connect(this.ctx.destination);
+        osc.start();
+        osc.stop(this.ctx.currentTime + 0.12);
+      }
+      playExplosion() {
+        if (!this.ctx) return;
+        const bufferSize = this.ctx.sampleRate * 0.25;
+        const buffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
+        const output = buffer.getChannelData(0);
+        for (let i = 0; i < bufferSize; i++) {
+          output[i] = Math.random() * 2 - 1;
+        }
+        const whiteNoise = this.ctx.createBufferSource();
+        whiteNoise.buffer = buffer;
+
+        const filter = this.ctx.createBiquadFilter();
+        filter.type = 'lowpass';
+        filter.frequency.setValueAtTime(800, this.ctx.currentTime);
+        filter.frequency.linearRampToValueAtTime(50, this.ctx.currentTime + 0.25);
+
+        const gain = this.ctx.createGain();
+        gain.gain.setValueAtTime(0.2, this.ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + 0.25);
+
+        whiteNoise.connect(filter);
+        filter.connect(gain);
+        gain.connect(this.ctx.destination);
+
+        whiteNoise.start();
+        whiteNoise.stop(this.ctx.currentTime + 0.25);
+      }
+      playPowerup() {
+        if (!this.ctx) return;
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(300, this.ctx.currentTime);
+        osc.frequency.exponentialRampToValueAtTime(800, this.ctx.currentTime + 0.18);
+        gain.gain.setValueAtTime(0.12, this.ctx.currentTime);
+        gain.gain.linearRampToValueAtTime(0, this.ctx.currentTime + 0.18);
+        osc.connect(gain);
+        gain.connect(this.ctx.destination);
+        osc.start();
+        osc.stop(this.ctx.currentTime + 0.18);
+      }
+      playDamage() {
+        if (!this.ctx) return;
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        osc.type = 'sawtooth';
+        osc.frequency.setValueAtTime(180, this.ctx.currentTime);
+        osc.frequency.linearRampToValueAtTime(30, this.ctx.currentTime + 0.2);
+        gain.gain.setValueAtTime(0.15, this.ctx.currentTime);
+        gain.gain.linearRampToValueAtTime(0, this.ctx.currentTime + 0.2);
+        osc.connect(gain);
+        gain.connect(this.ctx.destination);
+        osc.start();
+        osc.stop(this.ctx.currentTime + 0.2);
+      }
+    }
+
+    const sfx = new SoundFX();
+
+    // Game Core Logic & MDP Visualizer with 4 Autonomous Bots
+    window.onload = function() {
+      const canvas = document.getElementById('gameCanvas');
+      const ctx = canvas.getContext('2d');
+
+      const GRID_SIZE = 11;
+      const TILE_SIZE = 52;
+
+      const TILE = {
+        EMPTY: 0,
+        SOLID: 1,
+        SOFT: 2
+      };
+
+      const ITEM = {
+        NONE: 0,
+        BOMB_POWER: 1,
+        EXTRA_BOMB: 2,
+        SPEED: 3
+      };
+
+      const REWARD = {
+        STEP: -1,
+        INVALID_MOVE: -3,
+        DESTROY_CRATE: +20,
+        KILL_ENEMY: +100,
+        COLLECT_ITEM: +15,
+        DEATH: -300,
+        WIN: +500
+      };
+
+      const BOT_CONFIGS = [
+        { id: 0, name: 'Bot 1', color: '#3b82f6', lightColor: '#93c5fd', border: '#1d4ed8' },
+        { id: 1, name: 'Bot 2', color: '#ef4444', lightColor: '#fca5a5', border: '#b91c1c' },
+        { id: 2, name: 'Bot 3', color: '#10b981', lightColor: '#6ee7b7', border: '#047857' },
+        { id: 3, name: 'Bot 4', color: '#a855f7', lightColor: '#d8b4fe', border: '#6b21a8' }
+      ];
+
+      let grid = [];
+      let items = [];
+      let flames = [];
+      let bombs = [];
+      let bots = [];
+      let focusedBotIndex = 0;
+      let manualControlBot1 = false;
+      let isPaused = false;
+      let isGameOver = false;
+      let globalStepTimer = 0;
+
+      class BotAgent {
+        constructor(config, spawnX, spawnY) {
+          this.id = config.id;
+          this.name = config.name;
+          this.color = config.color;
+          this.lightColor = config.lightColor;
+          this.border = config.border;
+          this.x = spawnX;
+          this.y = spawnY;
+          this.alive = true;
+          this.maxBombs = 1;
+          this.bombRange = 1;
+          this.speedDelay = 18; // Frames between steps
+          this.cooldown = 0;
+          this.score = 0;
+          this.cumulativeReward = 0;
+          this.lastAction = 'NENHUMA';
+          this.logs = [];
+        }
+
+        log(rewardVal, desc) {
+          this.logs.unshift({
+            reward: rewardVal,
+            desc: desc,
+            time: new Date().toLocaleTimeString().split(' ')[0]
+          });
+          if (this.logs.length > 20) this.logs.pop();
+        }
+      }
+
+      function initGame() {
+        grid = Array(GRID_SIZE).fill(null).map(() => Array(GRID_SIZE).fill(TILE.EMPTY));
+        items = Array(GRID_SIZE).fill(null).map(() => Array(GRID_SIZE).fill(ITEM.NONE));
+        flames = [];
+        bombs = [];
+        isGameOver = false;
+        isPaused = false;
+
+        // Build walls and soft blocks
+        for (let r = 0; r < GRID_SIZE; r++) {
+          for (let c = 0; c < GRID_SIZE; c++) {
+            if (r === 0 || r === GRID_SIZE - 1 || c === 0 || c === GRID_SIZE - 1 || (r % 2 === 0 && c % 2 === 0)) {
+              grid[r][c] = TILE.SOLID;
+            } else {
+              // Reserve 4 corners for bot spawns
+              const isCorner = (r <= 2 && c <= 2) || (r <= 2 && c >= GRID_SIZE - 3) ||
+                               (r >= GRID_SIZE - 3 && c <= 2) || (r >= GRID_SIZE - 3 && c >= GRID_SIZE - 3);
+              if (!isCorner && Math.random() < 0.65) {
+                grid[r][c] = TILE.SOFT;
+                const randItem = Math.random();
+                if (randItem < 0.15) items[r][c] = ITEM.BOMB_POWER;
+                else if (randItem < 0.28) items[r][c] = ITEM.EXTRA_BOMB;
+                else if (randItem < 0.38) items[r][c] = ITEM.SPEED;
+              }
+            }
+          }
+        }
+
+        // Spawn 4 Bots in 4 corners
+        const spawns = [
+          { x: 1, y: 1 },
+          { x: GRID_SIZE - 2, y: 1 },
+          { x: 1, y: GRID_SIZE - 2 },
+          { x: GRID_SIZE - 2, y: GRID_SIZE - 2 }
+        ];
+
+        bots = BOT_CONFIGS.map((cfg, idx) => {
+          const agent = new BotAgent(cfg, spawns[idx].x, spawns[idx].y);
+          agent.log(0, "Episódio Iniciado");
+          return agent;
+        });
+
+        hideModal();
+        updateHUD();
+        updateMDPStats();
+      }
+
+      function isTileWalkable(x, y) {
+        if (x < 0 || x >= GRID_SIZE || y < 0 || y >= GRID_SIZE) return false;
+        if (grid[y][x] !== TILE.EMPTY) return false;
+        if (bombs.some(b => b.x === x && b.y === y)) return false;
+        return true;
+      }
+
+      function isTileInBlastZone(x, y) {
+        if (flames.some(f => f.x === x && f.y === y)) return true;
+        for (let b of bombs) {
+          if (b.x === x && b.y === y) return true;
+          const dirs = [{x:0, y:-1},{x:0, y:1},{x:-1, y:0},{x:1, y:0}];
+          for (let d of dirs) {
+            for (let r = 1; r <= b.range; r++) {
+              const bx = b.x + d.x * r;
+              const by = b.y + d.y * r;
+              if (bx < 0 || bx >= GRID_SIZE || by < 0 || by >= GRID_SIZE) break;
+              if (grid[by][bx] === TILE.SOLID) break;
+              if (bx === x && by === y) return true;
+              if (grid[by][bx] === TILE.SOFT) break;
+            }
+          }
+        }
+        return false;
+      }
+
+      function stepBot(bot, actionName) {
+        if (!bot.alive || isPaused || isGameOver) return;
+        sfx.init();
+
+        let reward = REWARD.STEP;
+        let targetX = bot.x;
+        let targetY = bot.y;
+        bot.lastAction = actionName;
+
+        if (actionName === 'CIMA') targetY--;
+        else if (actionName === 'BAIXO') targetY++;
+        else if (actionName === 'ESQUERDA') targetX--;
+        else if (actionName === 'DIREITA') targetX++;
+
+        if (actionName === 'BOMBA') {
+          const activeBombs = bombs.filter(b => b.ownerId === bot.id).length;
+          if (activeBombs < bot.maxBombs && !bombs.some(b => b.x === bot.x && b.y === bot.y)) {
+            bombs.push({
+              x: bot.x,
+              y: bot.y,
+              timer: 160,
+              range: bot.bombRange,
+              ownerId: bot.id
+            });
+            sfx.playBomb();
+            bot.log(0, "Ação: SOLTAR_BOMBA");
+          } else {
+            reward = REWARD.INVALID_MOVE;
+            bot.log(reward, "Ação Inválida: Sem bombas livres");
+          }
+        } else if (actionName !== 'PARADO') {
+          if (isTileWalkable(targetX, targetY)) {
+            bot.x = targetX;
+            bot.y = targetY;
+            if (bot.id === focusedBotIndex) sfx.playStep();
+
+            if (items[bot.y][bot.x] !== ITEM.NONE) {
+              const collected = items[bot.y][bot.x];
+              items[bot.y][bot.x] = ITEM.NONE;
+              reward += REWARD.COLLECT_ITEM;
+
+              if (collected === ITEM.BOMB_POWER) {
+                bot.bombRange++;
+                bot.log(REWARD.COLLECT_ITEM, "Item: +1 Alcance");
+              } else if (collected === ITEM.EXTRA_BOMB) {
+                bot.maxBombs++;
+                bot.log(REWARD.COLLECT_ITEM, "Item: +1 Bomba");
+              } else if (collected === ITEM.SPEED) {
+                bot.speedDelay = Math.max(8, bot.speedDelay - 4);
+                bot.log(REWARD.COLLECT_ITEM, "Item: +Velocidade");
+              }
+              if (bot.id === focusedBotIndex) sfx.playPowerup();
+            } else {
+              bot.log(reward, `Ação: Mover ${actionName}`);
+            }
+          } else {
+            reward = REWARD.INVALID_MOVE;
+            bot.log(reward, `Ação Inválida: Parede (${targetX}, ${targetY})`);
+          }
+        } else {
+          bot.log(reward, "Ação: PARADO");
+        }
+
+        bot.cumulativeReward += reward;
+        updateHUD();
+        if (bot.id === focusedBotIndex) updateMDPStats();
+      }
+
+      function computeAutonomousBotAction(bot) {
+        const inDangerNow = isTileInBlastZone(bot.x, bot.y);
+        const actions = ['CIMA', 'BAIXO', 'ESQUERDA', 'DIREITA'];
+
+        if (inDangerNow) {
+          // Priority 1: Escape blast zone immediately
+          const safeAction = actions.find(act => {
+            let tx = bot.x, ty = bot.y;
+            if (act === 'CIMA') ty--;
+            if (act === 'BAIXO') ty++;
+            if (act === 'ESQUERDA') tx--;
+            if (act === 'DIREITA') tx++;
+            return isTileWalkable(tx, ty) && !isTileInBlastZone(tx, ty);
+          });
+
+          if (safeAction) return safeAction;
+
+          // If no 100% safe move, choose any walkable move
+          const walkableFallback = actions.find(act => {
+            let tx = bot.x, ty = bot.y;
+            if (act === 'CIMA') ty--;
+            if (act === 'BAIXO') ty++;
+            if (act === 'ESQUERDA') tx--;
+            if (act === 'DIREITA') tx++;
+            return isTileWalkable(tx, ty);
+          });
+          return walkableFallback || 'PARADO';
+        }
+
+        // Priority 2: Check if dropping a bomb damages adjacent crates or opponents
+        const hasAdjacentSoftOrRival = actions.some(act => {
+          let tx = bot.x, ty = bot.y;
+          if (act === 'CIMA') ty--;
+          if (act === 'BAIXO') ty++;
+          if (act === 'ESQUERDA') tx--;
+          if (act === 'DIREITA') tx++;
+          if (grid[ty] && grid[ty][tx] === TILE.SOFT) return true;
+          return bots.some(other => other.alive && other.id !== bot.id && other.x === tx && other.y === ty);
+        });
+
+        // Ensure bot has an escape route BEFORE placing bomb
+        if (hasAdjacentSoftOrRival && Math.random() < 0.65) {
+          const hasEscape = actions.some(act => {
+            let tx = bot.x, ty = bot.y;
+            if (act === 'CIMA') ty--;
+            if (act === 'BAIXO') ty++;
+            if (act === 'ESQUERDA') tx--;
+            if (act === 'DIREITA') tx++;
+            return isTileWalkable(tx, ty);
+          });
+          if (hasEscape) return 'BOMBA';
+        }
+
+        // Priority 3: Path toward items or opponents safely
+        const safeValidActions = actions.filter(act => {
+          let tx = bot.x, ty = bot.y;
+          if (act === 'CIMA') ty--;
+          if (act === 'BAIXO') ty++;
+          if (act === 'ESQUERDA') tx--;
+          if (act === 'DIREITA') tx++;
+          return isTileWalkable(tx, ty) && !isTileInBlastZone(tx, ty);
+        });
+
+        if (safeValidActions.length > 0) {
+          return safeValidActions[Math.floor(Math.random() * safeValidActions.length)];
+        }
+
+        return 'PARADO';
+      }
+
+      function processBombsAndFlames() {
+        for (let i = bombs.length - 1; i >= 0; i--) {
+          const b = bombs[i];
+          b.timer--;
+          if (b.timer <= 0) {
+            explodeBomb(b);
+            bombs.splice(i, 1);
+          }
+        }
+
+        for (let i = flames.length - 1; i >= 0; i--) {
+          const f = flames[i];
+          f.timer--;
+
+          // Check hit on bots
+          bots.forEach(bot => {
+            if (bot.alive && bot.x === f.x && bot.y === f.y) {
+              bot.alive = false;
+              bot.cumulativeReward += REWARD.DEATH;
+              bot.log(REWARD.DEATH, "Eliminado por Explosão!");
+              sfx.playDamage();
+
+              // Credit owner of bomb
+              if (f.ownerId !== undefined && f.ownerId !== bot.id) {
+                const killer = bots.find(b => b.id === f.ownerId);
+                if (killer && killer.alive) {
+                  killer.score += 300;
+                  killer.cumulativeReward += REWARD.KILL_ENEMY;
+                  killer.log(REWARD.KILL_ENEMY, `Eliminou ${bot.name}!`);
+                }
+              }
+            }
+          });
+
+          if (f.timer <= 0) flames.splice(i, 1);
+        }
+      }
+
+      function explodeBomb(bomb) {
+        sfx.playExplosion();
+        flames.push({ x: bomb.x, y: bomb.y, timer: 30, ownerId: bomb.ownerId });
+
+        const dirs = [{ x: 0, y: -1 }, { x: 0, y: 1 }, { x: -1, y: 0 }, { x: 1, y: 0 }];
+
+        dirs.forEach(d => {
+          for (let r = 1; r <= bomb.range; r++) {
+            const fx = bomb.x + d.x * r;
+            const fy = bomb.y + d.y * r;
+
+            if (fx < 0 || fx >= GRID_SIZE || fy < 0 || fy >= GRID_SIZE) break;
+            if (grid[fy][fx] === TILE.SOLID) break;
+
+            flames.push({ x: fx, y: fy, timer: 30, ownerId: bomb.ownerId });
+
+            if (grid[fy][fx] === TILE.SOFT) {
+              grid[fy][fx] = TILE.EMPTY;
+              const owner = bots.find(b => b.id === bomb.ownerId);
+              if (owner && owner.alive) {
+                owner.score += 50;
+                owner.cumulativeReward += REWARD.DESTROY_CRATE;
+                owner.log(REWARD.DESTROY_CRATE, "Bloco Destruído");
+              }
+              break;
+            }
+          }
+        });
+      }
+
+      function draw() {
+        const now = Date.now();
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+        // Subtle animated arena backdrop
+        const bg = ctx.createLinearGradient(0, 0, canvas.width, canvas.height);
+        bg.addColorStop(0, '#101a35');
+        bg.addColorStop(1, '#090f20');
+        ctx.fillStyle = bg;
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+        // Arena tiles
+        for (let r = 0; r < GRID_SIZE; r++) {
+          for (let c = 0; c < GRID_SIZE; c++) {
+            const x = c * TILE_SIZE, y = r * TILE_SIZE;
+            const inset = 2;
+            ctx.fillStyle = (r + c) % 2 ? '#14213b' : '#111d34';
+            ctx.fillRect(x, y, TILE_SIZE, TILE_SIZE);
+            ctx.strokeStyle = 'rgba(100,150,220,.10)';
+            ctx.lineWidth = 1;
+            ctx.strokeRect(x + .5, y + .5, TILE_SIZE - 1, TILE_SIZE - 1);
+
+            if (grid[r][c] === TILE.SOLID) {
+              const g = ctx.createLinearGradient(x, y, x + TILE_SIZE, y + TILE_SIZE);
+              g.addColorStop(0, '#536789'); g.addColorStop(.5, '#344866'); g.addColorStop(1, '#24334e');
+              ctx.fillStyle = g;
+              roundRect(ctx, x + 3, y + 3, TILE_SIZE - 6, TILE_SIZE - 6, 8);
+              ctx.fill();
+              ctx.strokeStyle = '#8298bb'; ctx.lineWidth = 1.5;
+              roundRect(ctx, x + 5, y + 5, TILE_SIZE - 10, TILE_SIZE - 10, 6); ctx.stroke();
+              ctx.fillStyle = 'rgba(255,255,255,.10)';
+              ctx.fillRect(x + 8, y + 8, TILE_SIZE - 16, 3);
+            } else if (grid[r][c] === TILE.SOFT) {
+              const g = ctx.createLinearGradient(x, y, x + 10, y + TILE_SIZE);
+              g.addColorStop(0, '#fbbf24'); g.addColorStop(.45, '#d97706'); g.addColorStop(1, '#92400e');
+              ctx.fillStyle = g;
+              roundRect(ctx, x + 4, y + 4, TILE_SIZE - 8, TILE_SIZE - 8, 7); ctx.fill();
+              ctx.strokeStyle = '#fcd34d'; ctx.lineWidth = 1.5;
+              roundRect(ctx, x + 6, y + 6, TILE_SIZE - 12, TILE_SIZE - 12, 5); ctx.stroke();
+              ctx.strokeStyle = 'rgba(69,26,3,.65)'; ctx.lineWidth = 3;
+              ctx.beginPath();
+              ctx.moveTo(x + 10, y + 17); ctx.lineTo(x + TILE_SIZE - 10, y + 17);
+              ctx.moveTo(x + TILE_SIZE / 2, y + 9); ctx.lineTo(x + TILE_SIZE / 2, y + TILE_SIZE - 9);
+              ctx.stroke();
+              ctx.fillStyle = 'rgba(255,255,255,.22)';
+              ctx.fillRect(x + 10, y + 9, TILE_SIZE - 20, 3);
+            }
+
+            if (grid[r][c] === TILE.EMPTY && items[r][c] !== ITEM.NONE) {
+              const itemType = items[r][c], cx = x + TILE_SIZE / 2, cy = y + TILE_SIZE / 2;
+              const bob = Math.sin(now / 180 + r + c) * 2;
+              const color = itemType === ITEM.BOMB_POWER ? '#fbbf24' : itemType === ITEM.EXTRA_BOMB ? '#60a5fa' : '#34d399';
+              ctx.save();
+              ctx.shadowColor = color; ctx.shadowBlur = 15;
+              ctx.fillStyle = 'rgba(7,12,28,.88)';
+              ctx.beginPath(); ctx.arc(cx, cy + bob, 15, 0, Math.PI * 2); ctx.fill();
+              ctx.strokeStyle = color; ctx.lineWidth = 2; ctx.stroke();
+              ctx.shadowBlur = 0;
+              ctx.font = 'bold 20px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+              ctx.fillStyle = color;
+              ctx.fillText(itemType === ITEM.BOMB_POWER ? '✦' : itemType === ITEM.EXTRA_BOMB ? '●' : '⚡', cx, cy + bob);
+              ctx.restore();
+            }
+          }
+        }
+
+        // Bombs with a pulsing warning ring
+        bombs.forEach(b => {
+          const bx = b.x * TILE_SIZE + TILE_SIZE / 2, by = b.y * TILE_SIZE + TILE_SIZE / 2;
+          const pulse = 1 + (Math.sin(now / 90) + 1) * 1.4;
+          ctx.save();
+          ctx.strokeStyle = `rgba(248,113,113,${.35 + (Math.sin(now / 90) + 1) * .2})`;
+          ctx.lineWidth = 3;
+          ctx.beginPath(); ctx.arc(bx, by, 19 + pulse * 2, 0, Math.PI * 2); ctx.stroke();
+          const g = ctx.createRadialGradient(bx - 5, by - 7, 2, bx, by, 17);
+          g.addColorStop(0, '#64748b'); g.addColorStop(.4, '#1f2937'); g.addColorStop(1, '#020617');
+          ctx.fillStyle = g; ctx.shadowColor = '#fb7185'; ctx.shadowBlur = 12;
+          ctx.beginPath(); ctx.arc(bx, by, 15 + pulse, 0, Math.PI * 2); ctx.fill();
+          ctx.shadowBlur = 0;
+          ctx.strokeStyle = '#fda4af'; ctx.lineWidth = 2; ctx.stroke();
+          ctx.strokeStyle = '#fbbf24'; ctx.lineWidth = 3;
+          ctx.beginPath(); ctx.moveTo(bx + 5, by - 12); ctx.quadraticCurveTo(bx + 14, by - 23, bx + 9, by - 26); ctx.stroke();
+          ctx.fillStyle = '#fff7ed'; ctx.beginPath(); ctx.arc(bx + 9, by - 26, 3, 0, Math.PI * 2); ctx.fill();
+          ctx.restore();
+        });
+
+        // Animated flame gradients
+        flames.forEach(f => {
+          const fx = f.x * TILE_SIZE, fy = f.y * TILE_SIZE;
+          const flicker = Math.sin(now / 35 + f.x * 2 + f.y) * 3;
+          ctx.save();
+          ctx.shadowColor = '#fb923c'; ctx.shadowBlur = 22;
+          const g = ctx.createLinearGradient(fx, fy, fx + TILE_SIZE, fy + TILE_SIZE);
+          g.addColorStop(0, '#fff7ad'); g.addColorStop(.35, '#fb923c'); g.addColorStop(1, '#ef4444');
+          ctx.fillStyle = g;
+          roundRect(ctx, fx + 4, fy + 4, TILE_SIZE - 8, TILE_SIZE - 8, 10 + flicker); ctx.fill();
+          ctx.shadowBlur = 0;
+          ctx.fillStyle = '#fff7c2';
+          roundRect(ctx, fx + 13, fy + 13, TILE_SIZE - 26, TILE_SIZE - 26, 6); ctx.fill();
+          ctx.restore();
+        });
+
+        // Character sprites: glossy bodies, eyes, feet and focus halo
+        bots.forEach(bot => {
+          if (!bot.alive) return;
+          const px = bot.x * TILE_SIZE + TILE_SIZE / 2;
+          const py = bot.y * TILE_SIZE + TILE_SIZE / 2;
+          const bob = Math.sin(now / 150 + bot.id) * 1.7;
+          ctx.save();
+
+          if (bot.id === focusedBotIndex) {
+            ctx.beginPath(); ctx.arc(px, py, 23 + Math.sin(now / 160) * 2, 0, Math.PI * 2);
+            ctx.strokeStyle = '#fbbf24'; ctx.lineWidth = 2.5; ctx.setLineDash([5, 4]); ctx.stroke(); ctx.setLineDash([]);
+            ctx.shadowColor = '#fbbf24'; ctx.shadowBlur = 18;
+          }
+
+          // Tiny feet
+          ctx.shadowBlur = 0;
+          ctx.fillStyle = 'rgba(0,0,0,.38)';
+          ctx.beginPath(); ctx.ellipse(px, py + 15, 15, 5, 0, 0, Math.PI * 2); ctx.fill();
+          ctx.fillStyle = bot.border;
+          roundRect(ctx, px - 12, py + 5 + bob, 9, 13, 4); ctx.fill();
+          roundRect(ctx, px + 3, py + 5 + bob, 9, 13, 4); ctx.fill();
+
+          const body = ctx.createRadialGradient(px - 7, py - 9 + bob, 2, px, py + bob, 21);
+          body.addColorStop(0, bot.lightColor); body.addColorStop(.55, bot.color); body.addColorStop(1, bot.border);
+          ctx.fillStyle = body; ctx.shadowColor = bot.color; ctx.shadowBlur = bot.id === focusedBotIndex ? 17 : 8;
+          ctx.beginPath(); ctx.arc(px, py + bob, 17, 0, Math.PI * 2); ctx.fill();
+          ctx.shadowBlur = 0; ctx.strokeStyle = 'rgba(255,255,255,.9)'; ctx.lineWidth = 2; ctx.stroke();
+
+          // Face plate and eyes
+          ctx.fillStyle = 'rgba(255,255,255,.88)';
+          roundRect(ctx, px - 11, py - 8 + bob, 22, 13, 6); ctx.fill();
+          ctx.fillStyle = '#0f172a';
+          ctx.beginPath(); ctx.arc(px - 5, py - 2 + bob, 2.2, 0, Math.PI * 2); ctx.fill();
+          ctx.beginPath(); ctx.arc(px + 5, py - 2 + bob, 2.2, 0, Math.PI * 2); ctx.fill();
+          ctx.strokeStyle = '#0f172a'; ctx.lineWidth = 1.5;
+          ctx.beginPath(); ctx.arc(px, py + 1 + bob, 4, .25, Math.PI - .25); ctx.stroke();
+
+          // Small ID chip
+          ctx.fillStyle = '#ffffff'; ctx.font = 'bold 9px Inter, sans-serif'; ctx.textAlign = 'center';
+          ctx.fillText(`B${bot.id + 1}`, px, py + 27);
+          ctx.restore();
+        });
+
+        // Tiny top-level arena label
+        ctx.save();
+        ctx.fillStyle = 'rgba(148,163,184,.7)';
+        ctx.font = '10px Inter, sans-serif'; ctx.textAlign = 'left';
+        ctx.fillText('ARENA MDP • 4 AGENTES', 8, 13);
+        ctx.restore();
+      }
+
+      function roundRect(ctx, x, y, width, height, radius) {
+        const r = Math.min(radius, width / 2, height / 2);
+        ctx.beginPath();
+        ctx.moveTo(x + r, y);
+        ctx.arcTo(x + width, y, x + width, y + height, r);
+        ctx.arcTo(x + width, y + height, x, y + height, r);
+        ctx.arcTo(x, y + height, x, y, r);
+        ctx.arcTo(x, y, x + width, y, r);
+        ctx.closePath();
+      }
+
+      function updateHUD() {
+        const aliveCount = bots.filter(b => b.alive).length;
+        document.getElementById('hud-alive-bots').textContent = `${aliveCount} / 4`;
+
+        const focusedBot = bots[focusedBotIndex];
+        document.getElementById('hud-focused-bot').textContent = focusedBot.name;
+
+        // Determine current score leader
+        let leader = bots[0];
+        bots.forEach(b => { if (b.score > leader.score) leader = b; });
+        document.getElementById('hud-leader').textContent = `${leader.name} (${leader.score})`;
+
+        // Check Match Over condition
+        if (aliveCount <= 1 && !isGameOver) {
+          isGameOver = true;
+          const winner = bots.find(b => b.alive);
+          if (winner) {
+            winner.cumulativeReward += REWARD.WIN;
+            winner.log(REWARD.WIN, "Vencedor da Partida!");
+            showModal(`${winner.name.toUpperCase()} VENCEU!`, "Último agente sobrevivente no grid MDP.", "fa-trophy text-amber-400");
+          } else {
+            showModal("EMPATE!", "Todos os agentes foram eliminados simultaneamente.", "fa-skull text-rose-500");
+          }
+        }
+      }
+
+      function updateMDPStats() {
+        const bot = bots[focusedBotIndex];
+
+        document.getElementById('mdp-bot-label').textContent = bot.name;
+        document.getElementById('reward-bot-label').textContent = bot.name;
+
+        const tagElem = document.getElementById('mdp-status-tag');
+        if (bot.alive) {
+          tagElem.textContent = "VIVO";
+          tagElem.className = "text-[10px] bg-emerald-500/10 text-emerald-300 border border-emerald-500/20 px-2 py-0.5 rounded-full font-mono";
+        } else {
+          tagElem.textContent = "ELIMINADO";
+          tagElem.className = "text-[10px] bg-rose-500/10 text-rose-400 border border-rose-500/20 px-2 py-0.5 rounded-full font-mono";
+        }
+
+        document.getElementById('mdp-pos').textContent = `(${bot.x}, ${bot.y})`;
+        document.getElementById('mdp-last-action').textContent = bot.lastAction;
+
+        // Calc distance to nearest rival
+        const activeRivals = bots.filter(b => b.alive && b.id !== bot.id);
+        if (activeRivals.length > 0) {
+          let minDist = 999;
+          activeRivals.forEach(r => {
+            const d = Math.abs(r.x - bot.x) + Math.abs(r.y - bot.y);
+            if (d < minDist) minDist = d;
+          });
+          document.getElementById('mdp-dist-enemy').textContent = `d = ${minDist} ms`;
+        } else {
+          document.getElementById('mdp-dist-enemy').textContent = "Nenhum";
+        }
+
+        // Bomb Danger status
+        const isNearBomb = isTileInBlastZone(bot.x, bot.y);
+        const dangerElem = document.getElementById('mdp-bomb-danger');
+        if (isNearBomb) {
+          dangerElem.textContent = "ALTO RISCO!";
+          dangerElem.className = "text-rose-500 font-bold text-sm animate-pulse";
+        } else {
+          dangerElem.textContent = "SEGURO";
+          dangerElem.className = "text-emerald-400 font-bold text-sm";
+        }
+
+        // Update Stats Bar
+        document.getElementById('stat-range').textContent = `${bot.bombRange} Célula(s)`;
+        document.getElementById('stat-bombs').textContent = `${bot.maxBombs} Ativa(s)`;
+        
+        const cumElem = document.getElementById('stat-cum-reward');
+        cumElem.textContent = (bot.cumulativeReward >= 0 ? '+' : '') + bot.cumulativeReward;
+        cumElem.className = bot.cumulativeReward >= 0 ? 'font-bold text-emerald-400 font-mono-code text-sm' : 'font-bold text-rose-400 font-mono-code text-sm';
+
+        // Render Vision Matrix
+        const visionContainer = document.getElementById('mdp-grid-vision');
+        visionContainer.innerHTML = '';
+
+        for (let dy = -1; dy <= 1; dy++) {
+          for (let dx = -1; dx <= 1; dx++) {
+            const vx = bot.x + dx;
+            const vy = bot.y + dy;
+            const cell = document.createElement('div');
+
+            if (dx === 0 && dy === 0) {
+              cell.className = 'bg-indigo-600 text-white font-bold py-1 rounded border border-indigo-400';
+              cell.textContent = `B${bot.id + 1}`;
+            } else if (vx < 0 || vx >= GRID_SIZE || vy < 0 || vy >= GRID_SIZE || grid[vy][vx] === TILE.SOLID) {
+              cell.className = 'bg-slate-800 text-slate-500 py-1 rounded';
+              cell.textContent = '1';
+            } else if (grid[vy][vx] === TILE.SOFT) {
+              cell.className = 'bg-amber-950 text-amber-400 py-1 rounded';
+              cell.textContent = '2';
+            } else if (bombs.some(b => b.x === vx && b.y === vy)) {
+              cell.className = 'bg-rose-950 text-rose-400 font-bold py-1 rounded';
+              cell.textContent = '3';
+            } else if (bots.some(b => b.alive && b.id !== bot.id && b.x === vx && b.y === vy)) {
+              cell.className = 'bg-purple-950 text-purple-300 font-bold py-1 rounded';
+              cell.textContent = '4';
+            } else {
+              cell.className = 'bg-slate-900 text-slate-400 py-1 rounded';
+              cell.textContent = '0';
+            }
+            visionContainer.appendChild(cell);
+          }
+        }
+
+        // Render Logs
+        const logList = document.getElementById('mdp-log-list');
+        logList.innerHTML = '';
+        if (bot.logs.length === 0) {
+          logList.innerHTML = '<div class="text-slate-500 text-[11px] italic">Sem eventos ainda.</div>';
+        } else {
+          bot.logs.forEach(lg => {
+            const item = document.createElement('div');
+            const isPos = lg.reward >= 0;
+            item.className = 'flex justify-between items-center p-1.5 rounded bg-slate-950 border border-slate-800/80 text-[11px]';
+            item.innerHTML = `
+              <span class="text-slate-300 truncate max-w-[190px]">${lg.desc}</span>
+              <span class="${isPos ? 'text-emerald-400' : 'text-rose-400'} font-bold font-mono">${isPos ? '+' : ''}${lg.reward}</span>
+            `;
+            logList.appendChild(item);
+          });
+        }
+      }
+
+      function showModal(title, desc, iconClass) {
+        document.getElementById('modal-title').textContent = title;
+        document.getElementById('modal-desc').textContent = desc;
+        document.getElementById('modal-icon').className = `text-5xl mb-3 ${iconClass}`;
+        document.getElementById('modal-screen').classList.remove('hidden');
+      }
+
+      function hideModal() {
+        document.getElementById('modal-screen').classList.add('hidden');
+      }
+
+      // Keyboard Controls
+      window.addEventListener('keydown', e => {
+        if (isPaused || isGameOver) return;
+
+        const b1 = bots[0];
+        if (manualControlBot1 && b1 && b1.alive) {
+          if (e.key === 'ArrowUp' || e.key.toLowerCase() === 'w') stepBot(b1, 'CIMA');
+          else if (e.key === 'ArrowDown' || e.key.toLowerCase() === 's') stepBot(b1, 'BAIXO');
+          else if (e.key === 'ArrowLeft' || e.key.toLowerCase() === 'a') stepBot(b1, 'ESQUERDA');
+          else if (e.key === 'ArrowRight' || e.key.toLowerCase() === 'd') stepBot(b1, 'DIREITA');
+          else if (e.key === ' ' || e.code === 'Space') {
+            e.preventDefault();
+            stepBot(b1, 'BOMBA');
+          }
+        }
+      });
+
+      // UI Control Handlers
+      document.getElementById('btn-pause').addEventListener('click', () => {
+        isPaused = !isPaused;
+        if (isPaused) showModal("PAUSADO", "Simulação MDP congelada.", "fa-pause text-amber-400");
+        else hideModal();
+      });
+
+      document.getElementById('btn-restart').addEventListener('click', () => initGame());
+
+      document.getElementById('btn-modal-action').addEventListener('click', () => {
+        if (isGameOver) initGame();
+        else { isPaused = false; hideModal(); }
+      });
+
+      document.getElementById('btn-toggle-manual').addEventListener('click', function() {
+        manualControlBot1 = !manualControlBot1;
+        this.classList.toggle('bg-indigo-600');
+        this.classList.toggle('text-white');
+        this.innerHTML = manualControlBot1
+          ? '<i class="fa-solid fa-gamepad"></i> Manual ATIVO · Bot 1'
+          : '<i class="fa-solid fa-gamepad"></i> Controle Manual Bot 1';
+      });
+
+      document.querySelectorAll('.btn-select-bot').forEach(btn => {
+        btn.addEventListener('click', function() {
+          focusedBotIndex = parseInt(this.getAttribute('data-bot-id'));
+          document.querySelectorAll('.btn-select-bot').forEach(b => {
+            b.className = 'btn-select-bot bg-slate-800 text-slate-300 font-bold px-2.5 py-1.5 rounded-lg border border-slate-700 transition';
+          });
+          const activeCfg = BOT_CONFIGS[focusedBotIndex];
+          this.className = `btn-select-bot bg-indigo-600 text-white font-bold px-2.5 py-1.5 rounded-lg border border-indigo-400 transition`;
+          updateMDPStats();
+          updateHUD();
+        });
+      });
+
+      document.getElementById('btn-clear-logs').addEventListener('click', () => {
+        bots[focusedBotIndex].logs = [];
+        updateMDPStats();
+      });
+
+      // Main Loop
+      function gameLoop() {
+        globalStepTimer++;
+
+        if (!isPaused && !isGameOver) {
+          // Autonomous bot loop execution based on speed delay
+          bots.forEach(bot => {
+            if (!bot.alive) return;
+            if (bot.id === 0 && manualControlBot1) return; // Skip if controlled manually
+
+            if (globalStepTimer % bot.speedDelay === 0) {
+              const act = computeAutonomousBotAction(bot);
+              stepBot(bot, act);
+            }
+          });
+
+          processBombsAndFlames();
+        }
+
+        draw();
+        requestAnimationFrame(gameLoop);
+      }
+
+      initGame();
+      gameLoop();
+    };
+  </script>
+</body>
+</html>

@@ -57,9 +57,6 @@ Esta é uma apresentação geral do conceito; os detalhes específicos da implem
 ## Tecnologias
 
 - HTML
-- CSS
-- JavaScript
-- Bibliotecas e recursos visuais externos carregados por CDN
 
 <div align="center">
 

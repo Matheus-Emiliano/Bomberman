@@ -44,7 +44,7 @@ Desafio-ia/
 
 | Arquivo | Descrição |
 |---|---|
-| `index.html` | Jogo e visualizador interativo da simulação. |
+| `bomberman_mdp_visualizer_demo (1).html` | Jogo e visualizador interativo da simulação. |
 | `Desafio-1-Bomberman-4-Bot-MDP.pdf` | Documento com o desafio do projeto. |
 | `README.md` | Apresentação e instruções do repositório. |
 
